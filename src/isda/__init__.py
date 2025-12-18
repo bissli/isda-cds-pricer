@@ -28,7 +28,8 @@ Basic Usage:
 __version__ = '1.0.0'
 
 # Calendar
-from .calendar import Calendar, add_business_days, adjust_date, is_business_day
+from .calendar import Calendar, adjust_date
+from .dates import add_business_days, is_business_day
 # CDS classes
 from .cds import CDS, CDSContract, CDSPricingResult
 # Backward-compatible API (for migrating from C++ version)

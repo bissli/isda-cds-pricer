@@ -2,14 +2,12 @@
 Tests for CDS payment schedule generation.
 """
 
-import pytest
 from datetime import date
 
-from isda.schedule import (
-    CDSSchedule, CouponPeriod, generate_cds_schedule,
-    get_accrued_days, calculate_accrued_interest
-)
-from isda.enums import PaymentFrequency, DayCountConvention, BadDayConvention
+from isda.enums import DayCountConvention, PaymentFrequency
+from isda.schedule import CDSSchedule, CouponPeriod
+from isda.schedule import calculate_accrued_interest, generate_cds_schedule
+from isda.schedule import get_accrued_days
 
 
 class TestCouponPeriod:

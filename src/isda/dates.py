@@ -8,6 +8,7 @@ from datetime import date, datetime
 from typing import Union
 
 from opendate import CustomCalendar, Date, register_calendar
+from opendate import interval as make_interval
 from opendate import set_default_calendar
 
 from .enums import DayCountConvention
@@ -54,33 +55,30 @@ def year_fraction(
     """
     Calculate the year fraction between two dates.
 
+    Uses opendate's yearfrac with ISDA day count conventions:
+    - ACT_360: basis=2 (Actual/360)
+    - ACT_365F/ACT_365: basis=3 (Actual/365)
+    - THIRTY_360: basis=0 (US 30/360)
+
     Args:
         start: Start date
         end: End date
         convention: Day count convention to use
 
-    Returns
+    Returns:
         Year fraction as a float
     """
     d1 = to_date(start)
     d2 = to_date(end)
-    days = d2.diff(d1).in_days()
+    iv = make_interval(d1, d2)
 
+    # Map DayCountConvention to opendate yearfrac basis
     if convention == DayCountConvention.ACT_360:
-        return days / 360.0
-
+        return iv.yearfrac(basis=2)
     elif convention in {DayCountConvention.ACT_365F, DayCountConvention.ACT_365}:
-        return days / 365.0
-
+        return iv.yearfrac(basis=3)
     elif convention == DayCountConvention.THIRTY_360:
-        y1, m1, d1_day = d1.year, d1.month, d1.day
-        y2, m2, d2_day = d2.year, d2.month, d2.day
-        if d1_day == 31:
-            d1_day = 30
-        if d2_day == 31 and d1_day >= 30:
-            d2_day = 30
-        return (360 * (y2 - y1) + 30 * (m2 - m1) + (d2_day - d1_day)) / 360.0
-
+        return iv.yearfrac(basis=0)
     else:
         raise ValueError(f'Unknown day count convention: {convention}')
 

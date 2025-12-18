@@ -2,11 +2,11 @@
 Tests for root finding algorithms.
 """
 
-import pytest
 import numpy as np
-
-from isda.root_finding import brent, newton_raphson, secant, bisection, find_root
+import pytest
 from isda.exceptions import ConvergenceError
+from isda.root_finding import bisection, brent, find_root, newton_raphson
+from isda.root_finding import secant
 
 
 class TestBrent:

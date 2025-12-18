@@ -2,14 +2,14 @@
 Tests for fee leg (premium leg) calculations.
 """
 
-import pytest
-import numpy as np
 from datetime import date
 
-from isda.fee_leg import fee_leg_pv, calculate_accrued_interest, risky_annuity
-from isda.curves import ZeroCurve, CreditCurve
-from isda.schedule import CDSSchedule
+import numpy as np
+import pytest
+from isda.curves import CreditCurve, ZeroCurve
 from isda.enums import DayCountConvention, PaymentFrequency
+from isda.fee_leg import calculate_accrued_interest, fee_leg_pv, risky_annuity
+from isda.schedule import CDSSchedule
 
 
 @pytest.fixture

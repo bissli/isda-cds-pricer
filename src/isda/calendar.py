@@ -6,9 +6,10 @@ Most functionality is in dates.py - this provides bad day conventions.
 
 from datetime import date
 
-from opendate import Date, CustomCalendar
+from opendate import CustomCalendar, Date
 
-from .dates import DateLike, to_date, is_business_day, add_business_days, WEEKENDS_ONLY
+from .dates import WEEKENDS_ONLY, DateLike, add_business_days
+from .dates import to_date
 from .enums import BadDayConvention
 
 
@@ -23,7 +24,7 @@ def adjust_date(
         d: Date to adjust
         convention: Bad day convention to apply
 
-    Returns:
+    Returns
         Adjusted Date
     """
     od = to_date(d)

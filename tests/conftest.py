@@ -2,14 +2,15 @@
 Shared test fixtures for CDS pricer tests.
 """
 
-import pytest
-from datetime import date
 import json
 import os
 import sys
 
+import pytest
+import pathlib
+
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(pathlib.Path(__file__).parent, '..', 'src'))
 
 
 @pytest.fixture
@@ -81,10 +82,10 @@ def accrual_start_date():
 def baseline_results():
     """Load baseline results if available."""
     baseline_path = os.path.join(
-        os.path.dirname(__file__), '..', 'baseline_results.json'
+        pathlib.Path(__file__).parent, '..', 'baseline_results.json'
     )
-    if os.path.exists(baseline_path):
-        with open(baseline_path, 'r') as f:
+    if pathlib.Path(baseline_path).exists():
+        with pathlib.Path(baseline_path).open('r') as f:
             return json.load(f)
     return None
 

@@ -2,13 +2,12 @@
 Tests for interpolation functions.
 """
 
-import pytest
 import numpy as np
-
-from isda.interpolation import (
-    flat_forward_interp, flat_forward_discount_factor,
-    flat_forward_survival_probability, interpolate_curve, forward_rate
-)
+import pytest
+from isda.interpolation import flat_forward_discount_factor
+from isda.interpolation import flat_forward_interp
+from isda.interpolation import flat_forward_survival_probability, forward_rate
+from isda.interpolation import interpolate_curve
 
 
 class TestFlatForwardInterp:

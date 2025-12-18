@@ -2,10 +2,10 @@
 Tests for calendar and business day functions.
 """
 
-import pytest
 from datetime import date
 
-from isda.calendar import Calendar, adjust_date, is_business_day, add_business_days
+from isda.calendar import Calendar, adjust_date
+from isda.dates import add_business_days, is_business_day
 from isda.enums import BadDayConvention
 
 

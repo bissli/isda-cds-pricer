@@ -2,11 +2,10 @@
 Tests for IMM date generation.
 """
 
-import pytest
 from datetime import date
 
-from isda import next_imm_date, previous_imm_date, is_imm_date
-from isda import imm_dates_for_tenors
+from isda import imm_dates_for_tenors, is_imm_date, next_imm_date
+from isda import previous_imm_date
 
 
 class TestIsImmDate:
@@ -44,7 +43,7 @@ class TestNextImmDate:
         """Next IMM from January should be March or June (with semi-annual roll)."""
         imm = next_imm_date(date(2020, 1, 15))
         # With semi-annual roll (post-2015), March rolls to June
-        assert imm.month in (3, 6)
+        assert imm.month in {3, 6}
         assert imm.day == 20
 
     def test_next_imm_from_march_19(self):
@@ -116,7 +115,7 @@ class TestImmDatesForTenors:
 
         for label, imm in result:
             assert imm.day == 20
-            assert imm.month in (6, 12)  # With semi-annual roll
+            assert imm.month in {6, 12}  # With semi-annual roll
 
     def test_dates_are_increasing(self):
         """Test that IMM dates are in increasing order."""

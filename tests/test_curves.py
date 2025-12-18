@@ -2,13 +2,11 @@
 Tests for curve classes.
 """
 
-import pytest
-import numpy as np
 from datetime import date
 
-from isda import ZeroCurve, CreditCurve
+import numpy as np
+from isda import CreditCurve, ZeroCurve
 from isda import bootstrap_zero_curve
-from isda import DayCountConvention
 
 
 class TestZeroCurve:

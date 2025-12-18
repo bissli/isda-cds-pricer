@@ -2,13 +2,10 @@
 Tests for backward-compatible API functions.
 """
 
-import pytest
-from datetime import date
 
-from isda.compat import (
-    cds_all_in_one, compute_isda_upfront, calculate_spread_from_upfront_charge,
-    cds_index_all_in_one
-)
+import pytest
+from isda.compat import calculate_spread_from_upfront_charge, cds_all_in_one
+from isda.compat import cds_index_all_in_one, compute_isda_upfront
 
 
 @pytest.fixture

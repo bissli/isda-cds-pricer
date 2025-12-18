@@ -2,13 +2,13 @@
 Tests for contingent leg (protection leg) calculations.
 """
 
-import pytest
-import numpy as np
 from datetime import date
 
-from isda.contingent_leg import contingent_leg_pv, protection_leg_pv, expected_loss
-from isda.curves import ZeroCurve, CreditCurve
-from isda.enums import DayCountConvention
+import numpy as np
+import pytest
+from isda.contingent_leg import contingent_leg_pv, expected_loss
+from isda.contingent_leg import protection_leg_pv
+from isda.curves import CreditCurve, ZeroCurve
 
 
 @pytest.fixture

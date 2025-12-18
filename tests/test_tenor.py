@@ -2,11 +2,10 @@
 Tests for tenor parsing and manipulation.
 """
 
-import pytest
 from datetime import date
 
+import pytest
 from isda.tenor import Tenor, parse_tenor, tenor_to_date, tenor_to_years
-from isda.enums import BadDayConvention
 
 
 class TestTenor:
