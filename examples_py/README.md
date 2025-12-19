@@ -7,7 +7,7 @@ These examples demonstrate the Python ISDA CDS Standard Model library.
 Make sure you have the library installed, then run any example:
 
 ```bash
-poetry run python examples/01_basic_pricing.py
+poetry run python examples_py/01_basic_pricing.py
 ```
 
 ## Example Files
