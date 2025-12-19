@@ -23,6 +23,8 @@ def contingent_leg_pv(
     recovery_rate: float = 0.4,
     notional: float = 1.0,
     integration_points: int = 100,
+    protection_start_date: DateLike | None = None,
+    protect_start: bool = True,
 ) -> float:
     """
     Calculate the present value of the contingent (protection) leg.
@@ -47,14 +49,33 @@ def contingent_leg_pv(
         recovery_rate: Recovery rate (e.g., 0.4 for 40%)
         notional: Notional amount
         integration_points: Number of integration points
+        protection_start_date: Start of protection period. If None, uses
+                              value_date + 1 (stepin_date) per ISDA convention.
+        protect_start: If True (default), protection starts at beginning of day
 
     Returns
         Present value of the contingent leg (positive value)
     """
+
     vd = parse_date(value_date)
     mat = parse_date(maturity_date)
 
-    t_start = discount_curve.time_from_date(vd)
+    # ISDA logic for protection start:
+    # When protectStart = TRUE (default):
+    #   offset = 1
+    #   startDate = MAX(cl->startDate, stepinDate - offset)
+    #   startDate = MAX(startDate, today - offset)
+    # This effectively means protection starts from MAX(accrual_start, today)
+    # when protectStart is TRUE.
+    if protection_start_date is None:
+        # Default: protection starts from value_date (today)
+        # This matches ISDA logic: MAX(cl->startDate, stepinDate - 1) = today
+        prot_start = vd
+    else:
+        prot_start = parse_date(protection_start_date)
+
+    # Calculate times for integration
+    t_start = discount_curve.time_from_date(prot_start)
     t_end = discount_curve.time_from_date(mat)
 
     if t_end <= t_start:
@@ -166,6 +187,8 @@ def protection_leg_pv(
     recovery_rate: float = 0.4,
     notional: float = 1.0,
     integration_points: int = 100,
+    protection_start_date: DateLike | None = None,
+    protect_start: bool = True,
 ) -> float:
     """
     Alias for contingent_leg_pv.
@@ -177,7 +200,9 @@ def protection_leg_pv(
         value_date, maturity_date,
         discount_curve, credit_curve,
         recovery_rate, notional,
-        integration_points
+        integration_points,
+        protection_start_date,
+        protect_start,
     )
 
 

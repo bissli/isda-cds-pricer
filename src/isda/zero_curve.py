@@ -12,7 +12,6 @@ from datetime import date
 
 import numpy as np
 
-from .calendar import adjust_date
 from .curves import ZeroCurve
 from .dates import DateLike, add_months, parse_date, year_fraction
 from .enums import BadDayConvention, DayCountConvention, PaymentFrequency
@@ -26,9 +25,10 @@ def bootstrap_zero_curve(
     swap_rates: list[float],
     swap_tenors: list[str],
     swap_maturity_dates: list[DateLike] | None = None,
-    fixed_day_count: DayCountConvention = DayCountConvention.ACT_365F,
+    fixed_day_count: DayCountConvention = DayCountConvention.THIRTY_360,
+    mm_day_count: DayCountConvention = DayCountConvention.ACT_360,
     float_day_count: DayCountConvention = DayCountConvention.ACT_360,
-    fixed_frequency: PaymentFrequency = PaymentFrequency.ANNUAL,
+    fixed_frequency: PaymentFrequency = PaymentFrequency.SEMI_ANNUAL,
     float_frequency: PaymentFrequency = PaymentFrequency.SEMI_ANNUAL,
     bad_day_convention: BadDayConvention = BadDayConvention.MODIFIED_FOLLOWING,
 ) -> ZeroCurve:
@@ -44,7 +44,8 @@ def bootstrap_zero_curve(
         swap_rates: List of swap/money market rates
         swap_tenors: List of tenor strings (e.g., ['1M', '3M', '1Y', '5Y'])
         swap_maturity_dates: Optional explicit maturity dates (overrides tenors)
-        fixed_day_count: Day count for fixed leg
+        fixed_day_count: Day count for swap fixed leg (default 30/360 per ISDA)
+        mm_day_count: Day count for money market rates (default ACT/360 per ISDA)
         float_day_count: Day count for floating leg
         fixed_frequency: Payment frequency for fixed leg
         float_frequency: Payment frequency for floating leg
@@ -65,15 +66,19 @@ def bootstrap_zero_curve(
         maturity_dates = [parse_date(d) for d in swap_maturity_dates]
     else:
         # Calculate maturity dates from tenors
+        # Note: ISDA uses no bad day adjustment for tenor dates
         maturity_dates = []
         for tenor_str in swap_tenors:
             tenor = parse_tenor(tenor_str)
-            mat_date = tenor.add_to_date(bd, bad_day_convention)
+            mat_date = tenor.add_to_date(bd, BadDayConvention.NONE)
             maturity_dates.append(mat_date)
 
-    # Calculate times from base date
+    # Curve uses ACT/365F for internal time representation (ISDA standard)
+    curve_day_count = DayCountConvention.ACT_365F
+
+    # Calculate times from base date using curve day count
     times = np.array([
-        year_fraction(bd, d, fixed_day_count) for d in maturity_dates
+        year_fraction(bd, d, curve_day_count) for d in maturity_dates
     ])
 
     # Initialize curve with placeholder rates
@@ -81,7 +86,7 @@ def bootstrap_zero_curve(
         base_date=bd,
         times=times,
         rates=np.zeros(len(times)),
-        day_count=fixed_day_count,
+        day_count=curve_day_count,
     )
 
     # Bootstrap each rate
@@ -93,12 +98,15 @@ def bootstrap_zero_curve(
             curve._values[i] = rate
             continue
 
-        if tenor.years <= 1.0:
+        if tenor.years < 1.0:
             # Money market rate: simple rate
+            # Use mm_day_count for year fraction (ACT/360 per ISDA)
+            # Note: In ISDA convention, 1Y and beyond are treated as swaps
+            t_mm = year_fraction(bd, mat_date, mm_day_count)
             # DF = 1 / (1 + r * t)
-            # Zero rate: DF = exp(-z * t)
-            # So z = -ln(DF) / t = -ln(1 / (1 + r * t)) / t = ln(1 + r * t) / t
-            df = 1.0 / (1.0 + rate * t)
+            # Zero rate: DF = exp(-z * t_curve)
+            # So z = -ln(DF) / t_curve
+            df = 1.0 / (1.0 + rate * t_mm)
             zero_rate = -np.log(df) / t
             curve._values[i] = zero_rate
         else:
@@ -185,19 +193,21 @@ def _generate_payment_dates(
     frequency: PaymentFrequency,
     bad_day: BadDayConvention = BadDayConvention.MODIFIED_FOLLOWING,
 ) -> list[date]:
-    """Generate payment dates for a swap leg."""
+    """Generate payment dates for a swap leg.
+
+    Uses backward generation from maturity to ensure correct end-of-month handling.
+    """
     dates = []
     months_per_period = frequency.months
 
-    current = start_date
+    # Generate dates backwards from maturity
+    current = end_date
     while True:
-        next_date = add_months(current, months_per_period)
-        if next_date >= end_date:
-            dates.append(end_date)
+        dates.insert(0, current)
+        prev_date = add_months(current, -months_per_period)
+        if prev_date <= start_date:
             break
-        adjusted = adjust_date(next_date, bad_day)
-        dates.append(adjusted)
-        current = next_date
+        current = prev_date
 
     return dates
 

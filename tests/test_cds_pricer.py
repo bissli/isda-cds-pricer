@@ -2,25 +2,23 @@
 Tests for CDS pricing against baseline results.
 """
 
-import pytest
 import json
 import os
-from datetime import date
 
-from isda import CDSPricer, cds_all_in_one, compute_isda_upfront
-from isda import calculate_spread_from_upfront_charge
-
+import pytest
+from isda import CDSPricer
+import pathlib
 
 # Load baseline results
 BASELINE_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'baseline_results.json'
+    pathlib.Path(__file__).parent, 'baseline_results.json'
 )
 
 
 def load_baseline():
     """Load baseline results if available."""
-    if os.path.exists(BASELINE_PATH):
-        with open(BASELINE_PATH, 'r') as f:
+    if pathlib.Path(BASELINE_PATH).exists():
+        with pathlib.Path(BASELINE_PATH).open() as f:
             return json.load(f)
     return None
 
@@ -214,7 +212,7 @@ class TestSpreadFromUpfront:
         assert abs(implied_spread - original_spread) < 1e-6
 
 
-@pytest.mark.skipif(BASELINE is None, reason="No baseline results available")
+@pytest.mark.skipif(BASELINE is None, reason='No baseline results available')
 class TestBaselineValidation:
     """Tests that validate against baseline results from C++ implementation."""
 

@@ -6,9 +6,10 @@ Provides a clean, user-friendly interface for pricing CDS contracts.
 
 from .cds import CDS, CDSContract, CDSPricingResult
 from .credit_curve import bootstrap_credit_curve
+from .credit_curve_isda import bootstrap_credit_curve_isda
 from .curves import CreditCurve
 from .dates import DateLike, parse_date
-from .enums import DayCountConvention
+from .enums import DayCountConvention, PaymentFrequency
 from .root_finding import brent
 from .zero_curve import bootstrap_zero_curve
 
@@ -41,7 +42,8 @@ class CDSPricer:
         swap_rates: list[float],
         swap_tenors: list[str],
         swap_maturity_dates: list[DateLike] | None = None,
-        swap_day_count: DayCountConvention = DayCountConvention.ACT_365F,
+        fixed_day_count: DayCountConvention = DayCountConvention.THIRTY_360,
+        mm_day_count: DayCountConvention = DayCountConvention.ACT_360,
     ):
         """
         Initialize the pricer with market data.
@@ -51,17 +53,19 @@ class CDSPricer:
             swap_rates: List of swap/money market rates
             swap_tenors: List of tenor strings
             swap_maturity_dates: Optional explicit maturity dates
-            swap_day_count: Day count for swap curve
+            fixed_day_count: Day count for swap fixed leg (default 30/360 per ISDA)
+            mm_day_count: Day count for money market rates (default ACT/360 per ISDA)
         """
         self.trade_date = parse_date(trade_date)
 
-        # Bootstrap the zero curve
+        # Bootstrap the zero curve using ISDA conventions
         self.zero_curve = bootstrap_zero_curve(
             base_date=self.trade_date,
             swap_rates=swap_rates,
             swap_tenors=swap_tenors,
             swap_maturity_dates=swap_maturity_dates,
-            fixed_day_count=swap_day_count,
+            fixed_day_count=fixed_day_count,
+            mm_day_count=mm_day_count,
         )
 
     def build_credit_curve(
@@ -128,17 +132,17 @@ class CDSPricer:
         else:
             accrual_start = parse_date(accrual_start_date)
 
-        # Build credit curve
-        if spread_tenors is None:
-            spread_tenors = ['6M', '1Y', '2Y', '3Y', '4Y', '5Y', '7Y', '10Y']
-
-        # Use the same par spread for all tenors (flat spread term structure)
-        par_spreads = [par_spread] * len(spread_tenors)
-
-        credit_curve = self.build_credit_curve(
-            par_spreads=par_spreads,
-            spread_tenors=spread_tenors,
+        # Build credit curve using ISDA methodology
+        # This creates a single-point curve bootstrapped to match the par spread
+        credit_curve = bootstrap_credit_curve_isda(
+            base_date=self.trade_date,
+            par_spread=par_spread,
+            maturity_date=mat_date,
+            zero_curve=self.zero_curve,
             recovery_rate=recovery_rate,
+            accrual_start_date=accrual_start,
+            payment_frequency=PaymentFrequency.QUARTERLY,
+            day_count=DayCountConvention.ACT_360,
         )
 
         # Convert coupon from bps to decimal
@@ -191,14 +195,12 @@ class CDSPricer:
             accrual_start_date=accrual_start_date,
         )
 
-        # Upfront is negative of PV for buyer (they pay upfront to enter)
-        # For buy protection: if PV > 0, CDS is in the money, buyer receives upfront
-        if is_buy_protection:
-            dirty_upfront = -result.pv_dirty
-            clean_upfront = -result.pv_clean
-        else:
-            dirty_upfront = -result.pv_dirty
-            clean_upfront = -result.pv_clean
+        # ISDA convention: upfront = contingent_leg_pv - fee_leg_pv
+        # This is exactly what pv_dirty represents (already computed in CDS.price())
+        # Positive upfront: buyer pays (spread > coupon)
+        # Negative upfront: buyer receives (spread < coupon)
+        dirty_upfront = result.pv_dirty
+        clean_upfront = result.pv_clean
 
         return dirty_upfront, clean_upfront, result.accrued_interest
 
@@ -230,8 +232,9 @@ class CDSPricer:
             Implied par spread (as decimal)
         """
         # Target PV based on upfront
-        # Upfront = -PV, so PV = -upfront * notional
-        target_pv = -upfront_charge * notional
+        # In our convention: upfront = pv_dirty (positive = buyer pays)
+        # So we find spread such that pv_dirty = upfront_charge * notional
+        target_pv = upfront_charge * notional
 
         # Objective function: find spread such that PV = target
         def objective(spread: float) -> float:

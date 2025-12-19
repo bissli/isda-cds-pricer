@@ -180,12 +180,13 @@ class CDS:
         # PV from protection buyer's perspective
         # Buy protection: pay premium (fee leg), receive protection (contingent leg)
         # Sell protection: receive premium (fee leg), pay protection (contingent leg)
+        # Relationship: dirty = clean + accrued, so clean = dirty - accrued
         if self.contract.is_buy_protection:
             pv_dirty = cont_pv - fee_pv
-            pv_clean = pv_dirty + accrued
+            pv_clean = pv_dirty - accrued
         else:
             pv_dirty = fee_pv - cont_pv
-            pv_clean = pv_dirty - accrued
+            pv_clean = pv_dirty + accrued
 
         # Calculate sensitivities
         cs01 = 0.0

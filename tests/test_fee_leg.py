@@ -144,14 +144,20 @@ class TestAccruedInterestFeeLeg:
         assert 800 < ai < 900
 
     def test_accrued_interest_at_period_start(self, sample_schedule):
-        """Test accrued interest is zero at period start."""
+        """Test accrued interest at period start.
+
+        ISDA convention: accrued is calculated to stepinDate (value_date + 1).
+        So at period start (March 20), stepinDate is March 21, giving 1 day of accrued.
+        """
         ai = calculate_accrued_interest(
             value_date=date(2020, 3, 20),  # Period start
             schedule=sample_schedule,
             coupon_rate=0.01,
             notional=1_000_000.0,
         )
-        assert ai == 0.0
+        # 1 day of accrued (stepinDate = March 21)
+        # 1/360 * 0.01 * 1,000,000 = 27.7778
+        assert abs(ai - 27.777777778) < 0.01
 
     def test_accrued_interest_before_schedule(self):
         """Test accrued interest before schedule start is zero."""
