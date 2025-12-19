@@ -8,12 +8,10 @@ Builds a zero rate curve from:
 Uses the standard ISDA methodology with flat forward interpolation.
 """
 
-from datetime import date
-
 import numpy as np
+from opendate import Date, Interval
 
 from .curves import ZeroCurve
-from .dates import DateLike, add_months, parse_date, year_fraction
 from .enums import BadDayConvention, DayCountConvention, PaymentFrequency
 from .exceptions import BootstrapError
 from .root_finding import brent
@@ -21,10 +19,10 @@ from .tenor import parse_tenor
 
 
 def bootstrap_zero_curve(
-    base_date: DateLike,
+    base_date: Date | str,
     swap_rates: list[float],
     swap_tenors: list[str],
-    swap_maturity_dates: list[DateLike] | None = None,
+    swap_maturity_dates: list[Date] | None = None,
     fixed_day_count: DayCountConvention = DayCountConvention.THIRTY_360,
     mm_day_count: DayCountConvention = DayCountConvention.ACT_360,
     float_day_count: DayCountConvention = DayCountConvention.ACT_360,
@@ -40,7 +38,7 @@ def bootstrap_zero_curve(
     2. For longer tenors, bootstrap from swap rates
 
     Args:
-        base_date: Curve base date
+        base_date: Curve base date (Date object or string)
         swap_rates: List of swap/money market rates
         swap_tenors: List of tenor strings (e.g., ['1M', '3M', '1Y', '5Y'])
         swap_maturity_dates: Optional explicit maturity dates (overrides tenors)
@@ -54,7 +52,8 @@ def bootstrap_zero_curve(
     Returns
         Bootstrapped ZeroCurve
     """
-    bd = parse_date(base_date)
+    if isinstance(base_date, str):
+        base_date = Date.parse(base_date)
 
     if len(swap_rates) != len(swap_tenors):
         raise BootstrapError('swap_rates and swap_tenors must have same length')
@@ -63,14 +62,17 @@ def bootstrap_zero_curve(
     if swap_maturity_dates is not None:
         if len(swap_maturity_dates) != len(swap_rates):
             raise BootstrapError('swap_maturity_dates must match swap_rates length')
-        maturity_dates = [parse_date(d) for d in swap_maturity_dates]
+        # Convert any string dates to Date objects
+        maturity_dates = [
+            Date.parse(d) if isinstance(d, str) else d for d in swap_maturity_dates
+        ]
     else:
         # Calculate maturity dates from tenors
         # Note: ISDA uses no bad day adjustment for tenor dates
         maturity_dates = []
         for tenor_str in swap_tenors:
             tenor = parse_tenor(tenor_str)
-            mat_date = tenor.add_to_date(bd, BadDayConvention.NONE)
+            mat_date = tenor.add_to_date(base_date, BadDayConvention.NONE)
             maturity_dates.append(mat_date)
 
     # Curve uses ACT/365F for internal time representation (ISDA standard)
@@ -78,12 +80,13 @@ def bootstrap_zero_curve(
 
     # Calculate times from base date using curve day count
     times = np.array([
-        year_fraction(bd, d, curve_day_count) for d in maturity_dates
+        Interval(base_date, d).yearfrac(basis=curve_day_count.value)
+        for d in maturity_dates
     ])
 
     # Initialize curve with placeholder rates
     curve = ZeroCurve(
-        base_date=bd,
+        base_date=base_date,
         times=times,
         rates=np.zeros(len(times)),
         day_count=curve_day_count,
@@ -102,7 +105,7 @@ def bootstrap_zero_curve(
             # Money market rate: simple rate
             # Use mm_day_count for year fraction (ACT/360 per ISDA)
             # Note: In ISDA convention, 1Y and beyond are treated as swaps
-            t_mm = year_fraction(bd, mat_date, mm_day_count)
+            t_mm = Interval(base_date, mat_date).yearfrac(basis=mm_day_count.value)
             # DF = 1 / (1 + r * t)
             # Zero rate: DF = exp(-z * t_curve)
             # So z = -ln(DF) / t_curve
@@ -119,7 +122,7 @@ def bootstrap_zero_curve(
 
             try:
                 zero_rate = _bootstrap_swap_rate(
-                    curve, i, rate, bd, mat_date,
+                    curve, i, rate, base_date, mat_date,
                     fixed_frequency, fixed_day_count
                 )
                 curve._values[i] = zero_rate
@@ -133,8 +136,8 @@ def _bootstrap_swap_rate(
     curve: ZeroCurve,
     idx: int,
     swap_rate: float,
-    base_date: date,
-    maturity_date: date,
+    base_date: Date,
+    maturity_date: Date,
     frequency: PaymentFrequency,
     day_count: DayCountConvention,
 ) -> float:
@@ -152,7 +155,7 @@ def _bootstrap_swap_rate(
     year_fracs = []
     prev_date = base_date
     for pay_date in payment_dates:
-        yf = year_fraction(prev_date, pay_date, day_count)
+        yf = Interval(prev_date, pay_date).yearfrac(basis=day_count.value)
         year_fracs.append(yf)
         prev_date = pay_date
 
@@ -164,12 +167,12 @@ def _bootstrap_swap_rate(
         # Calculate PV of fixed leg
         pv_fixed = 0.0
         for i, (pay_date, yf) in enumerate(zip(payment_dates, year_fracs)):
-            t = year_fraction(base_date, pay_date, curve.day_count)
+            t = Interval(base_date, pay_date).yearfrac(basis=curve.day_count.value)
             df = curve.discount_factor(t)
             pv_fixed += swap_rate * yf * df
 
         # Add notional at maturity
-        t_mat = year_fraction(base_date, maturity_date, curve.day_count)
+        t_mat = Interval(base_date, maturity_date).yearfrac(basis=curve.day_count.value)
         df_mat = curve.discount_factor(t_mat)
         pv_fixed += df_mat
 
@@ -188,11 +191,11 @@ def _bootstrap_swap_rate(
 
 
 def _generate_payment_dates(
-    start_date: date,
-    end_date: date,
+    start_date: Date,
+    end_date: Date,
     frequency: PaymentFrequency,
     bad_day: BadDayConvention = BadDayConvention.MODIFIED_FOLLOWING,
-) -> list[date]:
+) -> list[Date]:
     """Generate payment dates for a swap leg.
 
     Uses backward generation from maturity to ensure correct end-of-month handling.
@@ -204,7 +207,7 @@ def _generate_payment_dates(
     current = end_date
     while True:
         dates.insert(0, current)
-        prev_date = add_months(current, -months_per_period)
+        prev_date = current.subtract(months=months_per_period)
         if prev_date <= start_date:
             break
         current = prev_date
@@ -213,10 +216,10 @@ def _generate_payment_dates(
 
 
 def build_zero_curve_from_rates(
-    base_date: DateLike,
+    base_date: Date,
     rates: list[float],
     tenors: list[str],
-    maturity_dates: list[DateLike] | None = None,
+    maturity_dates: list[Date] | None = None,
     day_count: DayCountConvention = DayCountConvention.ACT_365F,
     rate_type: str = 'swap',  # 'swap', 'zero', 'discount'
 ) -> ZeroCurve:
@@ -227,7 +230,7 @@ def build_zero_curve_from_rates(
     full swap curve bootstrapping.
 
     Args:
-        base_date: Curve base date
+        base_date: Curve base date (Date object)
         rates: List of rates
         tenors: List of tenor strings
         maturity_dates: Optional explicit maturity dates
@@ -237,19 +240,19 @@ def build_zero_curve_from_rates(
     Returns
         ZeroCurve
     """
-    bd = parse_date(base_date)
-
     # Calculate maturity dates
     if maturity_dates is not None:
-        mat_dates = [parse_date(d) for d in maturity_dates]
+        mat_dates = maturity_dates
     else:
         mat_dates = []
         for tenor_str in tenors:
             tenor = parse_tenor(tenor_str)
-            mat_dates.append(tenor.add_to_date(bd))
+            mat_dates.append(tenor.add_to_date(base_date))
 
     # Calculate times
-    times = np.array([year_fraction(bd, d, day_count) for d in mat_dates])
+    times = np.array([
+        Interval(base_date, d).yearfrac(basis=day_count.value) for d in mat_dates
+    ])
 
     # Convert rates to zero rates if needed
     if rate_type == 'zero':
@@ -262,6 +265,6 @@ def build_zero_curve_from_rates(
         ])
     else:  # 'swap' or default
         # Use full bootstrapping
-        return bootstrap_zero_curve(bd, rates, tenors, maturity_dates)
+        return bootstrap_zero_curve(base_date, rates, tenors, maturity_dates)
 
-    return ZeroCurve(bd, times, zero_rates, day_count)
+    return ZeroCurve(base_date, times, zero_rates, day_count)

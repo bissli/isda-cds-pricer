@@ -10,20 +10,20 @@ for numerical stability.
 """
 
 import numpy as np
+from opendate import Date
 
 from .curves import CreditCurve, ZeroCurve
-from .dates import DateLike, parse_date
 
 
 def contingent_leg_pv(
-    value_date: DateLike,
-    maturity_date: DateLike,
+    value_date: Date,
+    maturity_date: Date,
     discount_curve: ZeroCurve,
     credit_curve: CreditCurve,
     recovery_rate: float = 0.4,
     notional: float = 1.0,
     integration_points: int = 100,
-    protection_start_date: DateLike | None = None,
+    protection_start_date: Date | None = None,
     protect_start: bool = True,
 ) -> float:
     """
@@ -56,10 +56,6 @@ def contingent_leg_pv(
     Returns
         Present value of the contingent leg (positive value)
     """
-
-    vd = parse_date(value_date)
-    mat = parse_date(maturity_date)
-
     # ISDA logic for protection start:
     # When protectStart = TRUE (default):
     #   offset = 1
@@ -70,13 +66,13 @@ def contingent_leg_pv(
     if protection_start_date is None:
         # Default: protection starts from value_date (today)
         # This matches ISDA logic: MAX(cl->startDate, stepinDate - 1) = today
-        prot_start = vd
+        prot_start = value_date
     else:
-        prot_start = parse_date(protection_start_date)
+        prot_start = protection_start_date
 
     # Calculate times for integration
     t_start = discount_curve.time_from_date(prot_start)
-    t_end = discount_curve.time_from_date(mat)
+    t_end = discount_curve.time_from_date(maturity_date)
 
     if t_end <= t_start:
         return 0.0
@@ -180,14 +176,14 @@ def _integrate_protection_leg(
 
 
 def protection_leg_pv(
-    value_date: DateLike,
-    maturity_date: DateLike,
+    value_date: Date,
+    maturity_date: Date,
     discount_curve: ZeroCurve,
     credit_curve: CreditCurve,
     recovery_rate: float = 0.4,
     notional: float = 1.0,
     integration_points: int = 100,
-    protection_start_date: DateLike | None = None,
+    protection_start_date: Date | None = None,
     protect_start: bool = True,
 ) -> float:
     """
@@ -207,8 +203,8 @@ def protection_leg_pv(
 
 
 def expected_loss(
-    value_date: DateLike,
-    maturity_date: DateLike,
+    value_date: Date,
+    maturity_date: Date,
     credit_curve: CreditCurve,
     recovery_rate: float = 0.4,
     notional: float = 1.0,
@@ -230,10 +226,7 @@ def expected_loss(
     Returns
         Expected loss amount
     """
-    vd = parse_date(value_date)
-    mat = parse_date(maturity_date)
-
-    t_mat = credit_curve.time_from_date(mat)
+    t_mat = credit_curve.time_from_date(maturity_date)
     survival = credit_curve.survival_probability(t_mat)
     default_prob = 1.0 - survival
 

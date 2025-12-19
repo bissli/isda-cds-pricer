@@ -14,10 +14,11 @@ The main functions are:
 import time
 from typing import Any
 
+from opendate import Date
+
 from .cds import CDS, CDSContract
 from .credit_curve import bootstrap_credit_curve
 from .curves import CreditCurve, ZeroCurve
-from .dates import parse_date
 from .imm import previous_imm_date
 from .pricer import CDSPricer
 from .tenor import parse_tenor
@@ -78,10 +79,10 @@ def cds_all_in_one(
     start_time = time.time()
 
     # Parse dates
-    td = parse_date(trade_date)
-    vd = parse_date(value_date)
-    mat = parse_date(maturity_date)
-    acc_start = parse_date(accrual_start_date)
+    td = Date.parse(trade_date)
+    vd = Date.parse(value_date)
+    mat = Date.parse(maturity_date)
+    acc_start = Date.parse(accrual_start_date)
 
     # Build zero curve
     zero_curve = bootstrap_zero_curve(

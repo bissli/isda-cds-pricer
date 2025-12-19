@@ -10,18 +10,16 @@ to the protection seller. It includes:
 This implements the ISDA standard methodology.
 """
 
-from datetime import date
-
 import numpy as np
+from opendate import Date, Interval
 
 from .curves import CreditCurve, ZeroCurve
-from .dates import DateLike, parse_date, year_fraction
 from .enums import AccrualOnDefault, DayCountConvention
 from .schedule import CDSSchedule
 
 
 def fee_leg_pv(
-    value_date: DateLike,
+    value_date: Date,
     schedule: CDSSchedule,
     coupon_rate: float,
     discount_curve: ZeroCurve,
@@ -54,12 +52,8 @@ def fee_leg_pv(
     Returns
         Present value of the fee leg (positive for protection buyer)
     """
-    from datetime import timedelta
-
-    vd = parse_date(value_date)
-
     # ISDA uses stepin_date = today + 1 for checking if period should be included
-    stepin_date = vd + timedelta(days=1)
+    stepin_date = value_date.add(days=1)
 
     # obsOffset: when observing at start of day, subtract 1 from dates for survival
     # This is because survival is calculated at end of day, so to observe at start
@@ -88,7 +82,7 @@ def fee_leg_pv(
             surv_date = period.accrual_end
         else:
             # Other periods: accEndDate + obsOffset
-            surv_date = period.accrual_end + timedelta(days=obs_offset_days)
+            surv_date = period.accrual_end.add(days=obs_offset_days)
 
         t_surv = discount_curve.time_from_date(surv_date)
         t_end = discount_curve.time_from_date(period.accrual_end)
@@ -99,8 +93,10 @@ def fee_leg_pv(
         # the -1 obsOffset).
         if is_last_period and protect_start:
             # Last period: accEndDate = endDate + 1, so recalculate year fraction
-            extended_end = period.accrual_end + timedelta(days=1)
-            yf = year_fraction(period.accrual_start, extended_end, schedule.day_count)
+            extended_end = period.accrual_end.add(days=1)
+            yf = Interval(period.accrual_start, extended_end).yearfrac(
+                basis=schedule.day_count.value
+            )
         else:
             yf = period.year_fraction
 
@@ -120,12 +116,12 @@ def fee_leg_pv(
         # Accrual on default
         if accrual_on_default == AccrualOnDefault.ACCRUED_TO_DEFAULT:
             # For accrual on default, C code also applies obsOffset to dates
-            aod_start_date = period.accrual_start + timedelta(days=obs_offset_days)
+            aod_start_date = period.accrual_start.add(days=obs_offset_days)
             if is_last_period and protect_start:
                 # Last period: accEndDate + 1 - 1 = accEndDate
                 aod_end_date = period.accrual_end
             else:
-                aod_end_date = period.accrual_end + timedelta(days=obs_offset_days)
+                aod_end_date = period.accrual_end.add(days=obs_offset_days)
 
             t_aod_start = discount_curve.time_from_date(aod_start_date)
             t_aod_end = discount_curve.time_from_date(aod_end_date)
@@ -133,7 +129,7 @@ def fee_leg_pv(
             # For the last period with protectStart, use extended accrual end
             # for calculating the total accrual amount (yf includes extra day)
             if is_last_period and protect_start:
-                acc_end_for_amount = period.accrual_end + timedelta(days=1)
+                acc_end_for_amount = period.accrual_end.add(days=1)
             else:
                 acc_end_for_amount = period.accrual_end
 
@@ -155,8 +151,8 @@ def _calculate_accrual_on_default(
     notional: float,
     discount_curve: ZeroCurve,
     credit_curve: CreditCurve,
-    acc_start: date,
-    acc_end: date,
+    acc_start: Date,
+    acc_end: Date,
     day_count: DayCountConvention,
     num_points: int = 20,
 ) -> float:
@@ -173,12 +169,12 @@ def _calculate_accrual_on_default(
         return 0.0
 
     # Total accrual time for the period (used to calculate accrual rate)
-    total_yf = year_fraction(acc_start, acc_end, day_count)
+    total_yf = Interval(acc_start, acc_end).yearfrac(basis=day_count.value)
     total_amount = notional * coupon_rate * total_yf
 
     # Accrual rate per year (amount / time in years)
     # Using 365 for time calculation as per ISDA C code
-    period_days = (acc_end - acc_start).days
+    period_days = Interval(acc_start, acc_end).days
     acc_rate = total_amount / (period_days / 365.0)
 
     # Use uniform subdivision for integration
@@ -254,7 +250,7 @@ def _calculate_accrual_on_default(
 
 
 def risky_annuity(
-    value_date: DateLike,
+    value_date: Date,
     schedule: CDSSchedule,
     discount_curve: ZeroCurve,
     credit_curve: CreditCurve,
@@ -287,11 +283,11 @@ def risky_annuity(
 
 
 def calculate_accrued_interest(
-    value_date: DateLike,
+    value_date: Date,
     schedule: CDSSchedule,
     coupon_rate: float,
     notional: float = 1.0,
-    stepin_date: DateLike | None = None,
+    stepin_date: Date | None = None,
 ) -> float:
     """
     Calculate accrued interest at the stepin date.
@@ -310,23 +306,23 @@ def calculate_accrued_interest(
     Returns
         Accrued interest (always positive for accrued premium)
     """
-    from datetime import timedelta
-
-    vd = parse_date(value_date)
-
     # ISDA convention: accrued is calculated to stepinDate, not today
     if stepin_date is None:
-        ai_date = vd + timedelta(days=1)
+        ai_date = value_date.add(days=1)
     else:
-        ai_date = parse_date(stepin_date)
+        ai_date = stepin_date
 
     for period in schedule.periods:
         if period.accrual_start <= ai_date <= period.accrual_end:
-            yf = year_fraction(period.accrual_start, ai_date, schedule.day_count)
+            yf = Interval(period.accrual_start, ai_date).yearfrac(
+                basis=schedule.day_count.value
+            )
             return notional * coupon_rate * yf
         # Also handle case where ai_date falls in extended last period
         if period == schedule.periods[-1] and period.accrual_start < ai_date:
-            yf = year_fraction(period.accrual_start, ai_date, schedule.day_count)
+            yf = Interval(period.accrual_start, ai_date).yearfrac(
+                basis=schedule.day_count.value
+            )
             return notional * coupon_rate * yf
 
     # Check if before first period
@@ -336,7 +332,9 @@ def calculate_accrued_interest(
     # If after all periods, use last period
     last = schedule.periods[-1]
     if ai_date > last.accrual_end:
-        yf = year_fraction(last.accrual_start, last.accrual_end, schedule.day_count)
+        yf = Interval(last.accrual_start, last.accrual_end).yearfrac(
+            basis=schedule.day_count.value
+        )
         return notional * coupon_rate * yf
 
     return 0.0

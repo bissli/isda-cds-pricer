@@ -6,10 +6,10 @@ A tenor represents a time period like "3M" (3 months), "1Y" (1 year), etc.
 
 import re
 from dataclasses import dataclass
-from datetime import date
+
+from opendate import Date
 
 from .calendar import adjust_date
-from .dates import DateLike, add_days, add_months, add_years, parse_date
 from .enums import BadDayConvention
 
 
@@ -81,29 +81,28 @@ class Tenor:
 
     def add_to_date(
         self,
-        d: DateLike,
+        d: Date,
         convention: BadDayConvention = BadDayConvention.NONE,
-    ) -> date:
+    ) -> Date:
         """
         Add this tenor to a date.
 
         Args:
-            d: Starting date
+            d: Starting date (Date object)
             convention: Bad day convention to apply to result
 
         Returns
-            Resulting date
+            Resulting Date
         """
-        dt = parse_date(d)
-
         if self.unit == 'D':
-            result = add_days(dt, self.value)
+            result = d.add(days=self.value) if self.value >= 0 else d.subtract(days=-self.value)
         elif self.unit == 'W':
-            result = add_days(dt, self.value * 7)
+            days = self.value * 7
+            result = d.add(days=days) if days >= 0 else d.subtract(days=-days)
         elif self.unit == 'M':
-            result = add_months(dt, self.value)
+            result = d.add(months=self.value) if self.value >= 0 else d.subtract(months=-self.value)
         elif self.unit == 'Y':
-            result = add_years(dt, self.value)
+            result = d.add(years=self.value) if self.value >= 0 else d.subtract(years=-self.value)
         else:
             raise ValueError(f'Invalid tenor unit: {self.unit}')
 
@@ -156,19 +155,19 @@ def parse_tenor(s: str) -> Tenor:
 
 def tenor_to_date(
     tenor: str | Tenor,
-    reference_date: DateLike,
+    reference_date: Date,
     convention: BadDayConvention = BadDayConvention.MODIFIED_FOLLOWING,
-) -> date:
+) -> Date:
     """
     Convert a tenor to a date relative to a reference date.
 
     Args:
         tenor: Tenor string or Tenor object
-        reference_date: Base date for calculation
+        reference_date: Base date for calculation (Date object)
         convention: Bad day convention
 
     Returns
-        Resulting date
+        Resulting Date
     """
     if isinstance(tenor, str):
         tenor = parse_tenor(tenor)

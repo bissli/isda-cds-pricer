@@ -8,12 +8,18 @@ from enum import Enum, auto
 
 
 class DayCountConvention(Enum):
-    """Day count conventions for calculating year fractions."""
+    """Day count conventions for calculating year fractions.
 
-    ACT_360 = 'ACT/360'
-    ACT_365F = 'ACT/365F'
-    ACT_365 = 'ACT/365'  # Alias for ACT/365F
-    THIRTY_360 = '30/360'
+    Values correspond to opendate Interval.yearfrac() basis parameter:
+    - 0 = US (NASD) 30/360
+    - 2 = Actual/360
+    - 3 = Actual/365
+    """
+
+    ACT_360 = 2       # Actual/360 - opendate basis=2
+    ACT_365F = 3      # Actual/365 Fixed - opendate basis=3
+    ACT_365 = 3       # Alias for ACT/365F
+    THIRTY_360 = 0    # US 30/360 - opendate basis=0
 
     @classmethod
     def from_string(cls, s: str) -> 'DayCountConvention':

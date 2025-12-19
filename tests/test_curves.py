@@ -2,11 +2,9 @@
 Tests for curve classes.
 """
 
-from datetime import date
-
 import numpy as np
-from isda import CreditCurve, ZeroCurve
-from isda import bootstrap_zero_curve
+from isda import CreditCurve, ZeroCurve, bootstrap_zero_curve
+from opendate import Date
 
 
 class TestZeroCurve:
@@ -18,13 +16,13 @@ class TestZeroCurve:
         rates = np.array([0.01, 0.02, 0.025, 0.03])
 
         curve = ZeroCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             rates=rates,
         )
 
         assert len(curve.times) == 4
-        assert curve.base_date == date(2020, 1, 1)
+        assert curve.base_date == Date(2020, 1, 1)
 
     def test_discount_factor(self):
         """Test discount factor calculation."""
@@ -32,7 +30,7 @@ class TestZeroCurve:
         rates = np.array([0.05, 0.05])
 
         curve = ZeroCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             rates=rates,
         )
@@ -48,7 +46,7 @@ class TestZeroCurve:
         rates = np.array([0.05, 0.05])
 
         curve = ZeroCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             rates=rates,
         )
@@ -61,7 +59,7 @@ class TestZeroCurve:
         rates = np.array([0.05, 0.06])
 
         curve = ZeroCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             rates=rates,
         )
@@ -76,7 +74,7 @@ class TestZeroCurve:
         rates = np.array([0.05, 0.06])
 
         curve = ZeroCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             rates=rates,
         )
@@ -98,13 +96,13 @@ class TestCreditCurve:
         hazard_rates = np.array([0.01, 0.012, 0.015])
 
         curve = CreditCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             hazard_rates=hazard_rates,
         )
 
         assert len(curve.times) == 3
-        assert curve.base_date == date(2020, 1, 1)
+        assert curve.base_date == Date(2020, 1, 1)
 
     def test_survival_probability(self):
         """Test survival probability calculation."""
@@ -112,7 +110,7 @@ class TestCreditCurve:
         hazard_rates = np.array([0.02, 0.02])
 
         curve = CreditCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             hazard_rates=hazard_rates,
         )
@@ -128,7 +126,7 @@ class TestCreditCurve:
         hazard_rates = np.array([0.02, 0.02])
 
         curve = CreditCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             hazard_rates=hazard_rates,
         )
@@ -141,7 +139,7 @@ class TestCreditCurve:
         hazard_rates = np.array([0.02])
 
         curve = CreditCurve(
-            base_date=date(2020, 1, 1),
+            base_date=Date(2020, 1, 1),
             times=times,
             hazard_rates=hazard_rates,
         )

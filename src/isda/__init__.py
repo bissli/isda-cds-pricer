@@ -5,16 +5,16 @@ A clean, academic implementation of the ISDA CDS Standard Model for pricing
 Credit Default Swaps.
 
 Basic Usage:
-    >>> from isda import CDSPricer
+    >>> from isda import CDSPricer, Date
     >>>
     >>> pricer = CDSPricer(
-    ...     trade_date='31/08/2022',
+    ...     trade_date=Date.parse('31/08/2022'),
     ...     swap_rates=[0.002979, 0.006419, 0.01165, ...],
     ...     swap_tenors=['1M', '3M', '6M', '1Y', ...]
     ... )
     >>>
     >>> result = pricer.price_cds(
-    ...     maturity_date='20/12/2026',
+    ...     maturity_date=Date.parse('20/12/2026'),
     ...     par_spread=0.0065,
     ...     coupon_rate=100,  # bps
     ...     notional=12_000_000,
@@ -27,9 +27,21 @@ Basic Usage:
 
 __version__ = '1.0.0'
 
-# Calendar
-from .calendar import Calendar, adjust_date
-from .dates import add_business_days, is_business_day
+# Re-export opendate Date and Interval for convenience
+from opendate import CustomCalendar, Date, Interval, register_calendar
+from opendate import set_default_calendar
+
+# Setup weekends-only calendar as default for CDS pricing
+WEEKENDS_ONLY = CustomCalendar(
+    name='WEEKENDS_ONLY',
+    holidays=set(),
+    weekmask='Mon Tue Wed Thu Fri',
+)
+register_calendar('WEEKENDS_ONLY', WEEKENDS_ONLY)
+set_default_calendar('WEEKENDS_ONLY')
+
+# Calendar utilities
+from .calendar import adjust_date
 # CDS classes
 from .cds import CDS, CDSContract, CDSPricingResult
 # Backward-compatible API (for migrating from C++ version)
@@ -39,8 +51,6 @@ from .credit_curve import bootstrap_credit_curve
 from .credit_curve import credit_curve_from_hazard_rates
 # Curve classes
 from .curves import CreditCurve, Curve, ZeroCurve
-# Date utilities
-from .dates import add_days, add_months, add_years, parse_date, year_fraction
 # Enumerations
 from .enums import AccrualOnDefault, BadDayConvention, DayCountConvention
 from .enums import PaymentFrequency, StubMethod
@@ -49,7 +59,8 @@ from .imm import imm_date_vector  # backward compatible
 from .imm import imm_dates_for_tenors, is_imm_date, next_imm_date
 from .imm import previous_imm_date
 # Main pricer API
-from .pricer import CDSPricer, price_cds_simple
+from .pricer import CDSPricer, DateLike, ensure_date, ensure_dates
+from .pricer import price_cds_simple
 # Schedule
 from .schedule import CDSSchedule, CouponPeriod, generate_cds_schedule
 # Tenor parsing
@@ -59,9 +70,17 @@ from .zero_curve import bootstrap_zero_curve, build_zero_curve_from_rates
 __all__ = [
     # Version
     '__version__',
+    # Date types from opendate
+    'Date',
+    'Interval',
+    'CustomCalendar',
+    'WEEKENDS_ONLY',
     # Main API
     'CDSPricer',
     'price_cds_simple',
+    'DateLike',
+    'ensure_date',
+    'ensure_dates',
     # CDS classes
     'CDS',
     'CDSContract',
@@ -80,17 +99,8 @@ __all__ = [
     'StubMethod',
     'AccrualOnDefault',
     'PaymentFrequency',
-    # Dates
-    'parse_date',
-    'year_fraction',
-    'add_months',
-    'add_days',
-    'add_years',
     # Calendar
-    'Calendar',
-    'is_business_day',
     'adjust_date',
-    'add_business_days',
     # Schedule
     'CDSSchedule',
     'CouponPeriod',

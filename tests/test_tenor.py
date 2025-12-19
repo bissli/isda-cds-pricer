@@ -2,10 +2,9 @@
 Tests for tenor parsing and manipulation.
 """
 
-from datetime import date
-
 import pytest
 from isda.tenor import Tenor, parse_tenor, tenor_to_date, tenor_to_years
+from opendate import Date
 
 
 class TestTenor:
@@ -95,33 +94,33 @@ class TestTenor:
     def test_add_to_date_days(self):
         """Test adding days to date."""
         t = Tenor(7, 'D')
-        result = t.add_to_date(date(2020, 1, 1))
-        assert result == date(2020, 1, 8)
+        result = t.add_to_date(Date(2020, 1, 1))
+        assert result == Date(2020, 1, 8)
 
     def test_add_to_date_weeks(self):
         """Test adding weeks to date."""
         t = Tenor(2, 'W')
-        result = t.add_to_date(date(2020, 1, 1))
-        assert result == date(2020, 1, 15)
+        result = t.add_to_date(Date(2020, 1, 1))
+        assert result == Date(2020, 1, 15)
 
     def test_add_to_date_months(self):
         """Test adding months to date."""
         t = Tenor(3, 'M')
-        result = t.add_to_date(date(2020, 1, 15))
-        assert result == date(2020, 4, 15)
+        result = t.add_to_date(Date(2020, 1, 15))
+        assert result == Date(2020, 4, 15)
 
     def test_add_to_date_years(self):
         """Test adding years to date."""
         t = Tenor(2, 'Y')
-        result = t.add_to_date(date(2020, 1, 15))
-        assert result == date(2022, 1, 15)
+        result = t.add_to_date(Date(2020, 1, 15))
+        assert result == Date(2022, 1, 15)
 
     def test_add_to_date_month_end(self):
         """Test adding months at month end."""
         t = Tenor(1, 'M')
         # Jan 31 + 1M = Feb 28 (non-leap year) or Feb 29 (leap year)
-        result = t.add_to_date(date(2019, 1, 31))
-        assert result == date(2019, 2, 28)
+        result = t.add_to_date(Date(2019, 1, 31))
+        assert result == Date(2019, 2, 28)
 
 
 class TestParseTenor:
@@ -203,14 +202,14 @@ class TestTenorConversion:
 
     def test_tenor_to_date_string(self):
         """Test tenor_to_date with string tenor."""
-        result = tenor_to_date('3M', date(2020, 1, 15))
-        assert result == date(2020, 4, 15)
+        result = tenor_to_date('3M', Date(2020, 1, 15))
+        assert result == Date(2020, 4, 15)
 
     def test_tenor_to_date_object(self):
         """Test tenor_to_date with Tenor object."""
         t = Tenor(3, 'M')
-        result = tenor_to_date(t, date(2020, 1, 15))
-        assert result == date(2020, 4, 15)
+        result = tenor_to_date(t, Date(2020, 1, 15))
+        assert result == Date(2020, 4, 15)
 
     def test_tenor_to_years_string(self):
         """Test tenor_to_years with string tenor."""

@@ -10,10 +10,10 @@ iteration, ensuring perfect alignment with the C library results.
 """
 
 import numpy as np
+from opendate import Date, Interval
 
 from .contingent_leg import contingent_leg_pv
 from .curves import CreditCurve, ZeroCurve
-from .dates import DateLike, parse_date, year_fraction
 from .enums import AccrualOnDefault, BadDayConvention, DayCountConvention
 from .enums import PaymentFrequency
 from .exceptions import BootstrapError
@@ -23,13 +23,13 @@ from .schedule import generate_cds_schedule
 
 
 def bootstrap_credit_curve_isda(
-    base_date: DateLike,
+    base_date: Date,
     par_spread: float,
-    maturity_date: DateLike,
+    maturity_date: Date,
     zero_curve: ZeroCurve,
     recovery_rate: float = 0.4,
-    accrual_start_date: DateLike | None = None,
-    stepin_date: DateLike | None = None,
+    accrual_start_date: Date | None = None,
+    stepin_date: Date | None = None,
     payment_frequency: PaymentFrequency = PaymentFrequency.QUARTERLY,
     day_count: DayCountConvention = DayCountConvention.ACT_360,
     bad_day_convention: BadDayConvention = BadDayConvention.FOLLOWING,
@@ -56,30 +56,28 @@ def bootstrap_credit_curve_isda(
     Returns
         Bootstrapped CreditCurve with a single point at maturity
     """
-    bd = parse_date(base_date)
-    mat_date = parse_date(maturity_date)
-
     # Default stepin date to base_date + 1 (ISDA standard)
     if stepin_date is None:
-        from datetime import timedelta
-        step_in = bd + timedelta(days=1)
+        step_in = base_date.add(days=1)
     else:
-        step_in = parse_date(stepin_date)
+        step_in = stepin_date
 
     # Default accrual start to a previous IMM date or start date
     if accrual_start_date is None:
         from .imm import previous_imm_date
-        accrual_start = previous_imm_date(bd)
+        accrual_start = previous_imm_date(base_date)
     else:
-        accrual_start = parse_date(accrual_start_date)
+        accrual_start = accrual_start_date
 
     # Calculate maturity time
-    t_mat = year_fraction(bd, mat_date, DayCountConvention.ACT_365F)
+    t_mat = Interval(base_date, maturity_date).yearfrac(
+        basis=DayCountConvention.ACT_365F.value
+    )
 
     # Generate the CDS schedule
     schedule = generate_cds_schedule(
         accrual_start=accrual_start,
-        maturity=mat_date,
+        maturity=maturity_date,
         frequency=payment_frequency,
         day_count=day_count,
         bad_day=bad_day_convention,
@@ -87,7 +85,7 @@ def bootstrap_credit_curve_isda(
 
     # Initialize credit curve with placeholder rate
     credit_curve = CreditCurve(
-        base_date=bd,
+        base_date=base_date,
         times=np.array([t_mat]),
         hazard_rates=np.array([0.01]),  # Initial guess
         day_count=DayCountConvention.ACT_365F,
@@ -102,7 +100,7 @@ def bootstrap_credit_curve_isda(
         # Calculate fee leg PV with the par spread as coupon
         # (for a par CDS, coupon = spread)
         fee_pv = fee_leg_pv(
-            value_date=bd,
+            value_date=base_date,
             schedule=schedule,
             coupon_rate=par_spread,
             discount_curve=zero_curve,
@@ -115,7 +113,7 @@ def bootstrap_credit_curve_isda(
         # from the fee leg PV. The accrued is calculated to stepinDate.
         from .fee_leg import calculate_accrued_interest
         accrued = calculate_accrued_interest(
-            value_date=bd,
+            value_date=base_date,
             schedule=schedule,
             coupon_rate=par_spread,
             notional=1.0,
@@ -125,8 +123,8 @@ def bootstrap_credit_curve_isda(
 
         # Calculate contingent leg PV
         cont_pv = contingent_leg_pv(
-            value_date=bd,
-            maturity_date=mat_date,
+            value_date=base_date,
+            maturity_date=maturity_date,
             discount_curve=zero_curve,
             credit_curve=credit_curve,
             recovery_rate=recovery_rate,
@@ -157,12 +155,12 @@ def bootstrap_credit_curve_isda(
 
 
 def bootstrap_credit_curve_flat(
-    base_date: DateLike,
+    base_date: Date,
     par_spread: float,
-    maturity_dates: list[DateLike],
+    maturity_dates: list[Date],
     zero_curve: ZeroCurve,
     recovery_rate: float = 0.4,
-    accrual_start_date: DateLike | None = None,
+    accrual_start_date: Date | None = None,
     payment_frequency: PaymentFrequency = PaymentFrequency.QUARTERLY,
     day_count: DayCountConvention = DayCountConvention.ACT_360,
 ) -> CreditCurve:
@@ -186,18 +184,15 @@ def bootstrap_credit_curve_flat(
     Returns
         CreditCurve with flat hazard rate across all maturities
     """
-    bd = parse_date(base_date)
-
     if not maturity_dates:
         raise BootstrapError('At least one maturity date required')
 
     # Use the last maturity for bootstrapping
-    mat_dates = [parse_date(d) for d in maturity_dates]
-    final_maturity = max(mat_dates)
+    final_maturity = max(maturity_dates)
 
     # Bootstrap using final maturity
     single_point_curve = bootstrap_credit_curve_isda(
-        base_date=bd,
+        base_date=base_date,
         par_spread=par_spread,
         maturity_date=final_maturity,
         zero_curve=zero_curve,
@@ -212,13 +207,13 @@ def bootstrap_credit_curve_flat(
 
     # Create multi-point curve with same hazard rate at all maturities
     times = np.array([
-        year_fraction(bd, d, DayCountConvention.ACT_365F)
-        for d in mat_dates
+        Interval(base_date, d).yearfrac(basis=DayCountConvention.ACT_365F.value)
+        for d in maturity_dates
     ])
     times.sort()
 
     return CreditCurve(
-        base_date=bd,
+        base_date=base_date,
         times=times,
         hazard_rates=np.full(len(times), hazard_rate),
         day_count=DayCountConvention.ACT_365F,

@@ -4,14 +4,59 @@ High-level CDS Pricer API.
 Provides a clean, user-friendly interface for pricing CDS contracts.
 """
 
+import datetime
+import functools
+import inspect
+from typing import Union
+
+from opendate import Date
+
 from .cds import CDS, CDSContract, CDSPricingResult
 from .credit_curve import bootstrap_credit_curve
 from .credit_curve_isda import bootstrap_credit_curve_isda
 from .curves import CreditCurve
-from .dates import DateLike, parse_date
 from .enums import DayCountConvention, PaymentFrequency
 from .root_finding import brent
 from .zero_curve import bootstrap_zero_curve
+
+DateLike = Union[Date, str, datetime.date, datetime.datetime]
+
+
+def ensure_date(value: DateLike) -> Date:
+    """Convert a date-like value to a Date object."""
+    if isinstance(value, Date):
+        return value
+    if isinstance(value, str):
+        return Date.parse(value)
+    result = Date.instance(value)
+    if result is None:
+        raise TypeError(f'Cannot convert {type(value).__name__} to Date: {value}')
+    return result
+
+
+def ensure_dates(*param_names: str):
+    """
+    Decorator that converts specified parameters to Date objects.
+
+    Args:
+        *param_names: Names of parameters to convert to Date objects.
+                      None values are passed through unchanged.
+    """
+    def decorator(func):
+        sig = inspect.signature(func)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            bound = sig.bind(*args, **kwargs)
+            bound.apply_defaults()
+
+            for name in param_names:
+                if name in bound.arguments and bound.arguments[name] is not None:
+                    bound.arguments[name] = ensure_date(bound.arguments[name])
+
+            return func(*bound.args, **bound.kwargs)
+        return wrapper
+    return decorator
 
 
 class CDSPricer:
@@ -23,12 +68,12 @@ class CDSPricer:
 
     Example:
         >>> pricer = CDSPricer(
-        ...     trade_date='31/08/2022',
+        ...     trade_date=Date.parse('31/08/2022'),
         ...     swap_rates=[0.002979, 0.006419, 0.01165, ...],
         ...     swap_tenors=['1M', '3M', '6M', '1Y', ...]
         ... )
         >>> result = pricer.price_cds(
-        ...     maturity_date='20/12/2026',
+        ...     maturity_date=Date.parse('20/12/2026'),
         ...     par_spread=0.0065,
         ...     coupon_rate=100,  # bps
         ...     notional=12_000_000,
@@ -41,7 +86,7 @@ class CDSPricer:
         trade_date: DateLike,
         swap_rates: list[float],
         swap_tenors: list[str],
-        swap_maturity_dates: list[DateLike] | None = None,
+        swap_maturity_dates: list[Date] | None = None,
         fixed_day_count: DayCountConvention = DayCountConvention.THIRTY_360,
         mm_day_count: DayCountConvention = DayCountConvention.ACT_360,
     ):
@@ -56,7 +101,7 @@ class CDSPricer:
             fixed_day_count: Day count for swap fixed leg (default 30/360 per ISDA)
             mm_day_count: Day count for money market rates (default ACT/360 per ISDA)
         """
-        self.trade_date = parse_date(trade_date)
+        self.trade_date = ensure_date(trade_date)
 
         # Bootstrap the zero curve using ISDA conventions
         self.zero_curve = bootstrap_zero_curve(
@@ -93,6 +138,7 @@ class CDSPricer:
             recovery_rate=recovery_rate,
         )
 
+    @ensure_dates('maturity_date', 'accrual_start_date', 'value_date')
     def price_cds(
         self,
         maturity_date: DateLike,
@@ -122,25 +168,22 @@ class CDSPricer:
         Returns
             CDSPricingResult with all pricing metrics
         """
-        mat_date = parse_date(maturity_date)
-        val_date = parse_date(value_date) if value_date else self.trade_date
-
-        # Default accrual start to previous IMM date
+        # Apply defaults for None values
+        if value_date is None:
+            value_date = self.trade_date
         if accrual_start_date is None:
             from .imm import previous_imm_date
-            accrual_start = previous_imm_date(self.trade_date)
-        else:
-            accrual_start = parse_date(accrual_start_date)
+            accrual_start_date = previous_imm_date(self.trade_date)
 
         # Build credit curve using ISDA methodology
         # This creates a single-point curve bootstrapped to match the par spread
         credit_curve = bootstrap_credit_curve_isda(
             base_date=self.trade_date,
             par_spread=par_spread,
-            maturity_date=mat_date,
+            maturity_date=maturity_date,
             zero_curve=self.zero_curve,
             recovery_rate=recovery_rate,
-            accrual_start_date=accrual_start,
+            accrual_start_date=accrual_start_date,
             payment_frequency=PaymentFrequency.QUARTERLY,
             day_count=DayCountConvention.ACT_360,
         )
@@ -151,8 +194,8 @@ class CDSPricer:
         # Create contract
         contract = CDSContract(
             trade_date=self.trade_date,
-            maturity_date=mat_date,
-            accrual_start_date=accrual_start,
+            maturity_date=maturity_date,
+            accrual_start_date=accrual_start_date,
             coupon_rate=coupon_decimal,
             notional=notional,
             recovery_rate=recovery_rate,
@@ -166,7 +209,7 @@ class CDSPricer:
             credit_curve=credit_curve,
         )
 
-        return cds.price(value_date=val_date)
+        return cds.price(value_date=value_date)
 
     def compute_upfront(
         self,

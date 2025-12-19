@@ -2,14 +2,13 @@
 Tests for fee leg (premium leg) calculations.
 """
 
-from datetime import date
-
 import numpy as np
 import pytest
 from isda.curves import CreditCurve, ZeroCurve
 from isda.enums import DayCountConvention, PaymentFrequency
 from isda.fee_leg import calculate_accrued_interest, fee_leg_pv, risky_annuity
 from isda.schedule import CDSSchedule
+from opendate import Date
 
 
 @pytest.fixture
@@ -18,7 +17,7 @@ def sample_zero_curve():
     times = np.array([0.25, 0.5, 1.0, 2.0, 3.0, 5.0])
     rates = np.array([0.02, 0.022, 0.025, 0.028, 0.03, 0.032])
     return ZeroCurve(
-        base_date=date(2020, 3, 20),
+        base_date=Date(2020, 3, 20),
         times=times,
         rates=rates,
     )
@@ -30,7 +29,7 @@ def sample_credit_curve():
     times = np.array([0.5, 1.0, 2.0, 3.0, 5.0])
     hazard_rates = np.array([0.01, 0.012, 0.015, 0.017, 0.02])
     return CreditCurve(
-        base_date=date(2020, 3, 20),
+        base_date=Date(2020, 3, 20),
         times=times,
         hazard_rates=hazard_rates,
     )
@@ -40,8 +39,8 @@ def sample_credit_curve():
 def sample_schedule():
     """Create a sample CDS schedule."""
     return CDSSchedule(
-        accrual_start=date(2020, 3, 20),
-        maturity=date(2025, 3, 20),
+        accrual_start=Date(2020, 3, 20),
+        maturity=Date(2025, 3, 20),
         frequency=PaymentFrequency.QUARTERLY,
         day_count=DayCountConvention.ACT_360,
     )
@@ -53,7 +52,7 @@ class TestFeeLegPV:
     def test_fee_leg_pv_positive(self, sample_zero_curve, sample_credit_curve, sample_schedule):
         """Test fee leg PV is positive."""
         pv = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             coupon_rate=0.01,  # 100 bps
             discount_curve=sample_zero_curve,
@@ -64,14 +63,14 @@ class TestFeeLegPV:
     def test_fee_leg_pv_proportional_to_coupon(self, sample_zero_curve, sample_credit_curve, sample_schedule):
         """Test fee leg PV is proportional to coupon rate."""
         pv_100bps = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             coupon_rate=0.01,
             discount_curve=sample_zero_curve,
             credit_curve=sample_credit_curve,
         )
         pv_200bps = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             coupon_rate=0.02,
             discount_curve=sample_zero_curve,
@@ -83,7 +82,7 @@ class TestFeeLegPV:
     def test_fee_leg_pv_proportional_to_notional(self, sample_zero_curve, sample_credit_curve, sample_schedule):
         """Test fee leg PV is proportional to notional."""
         pv_1 = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             coupon_rate=0.01,
             discount_curve=sample_zero_curve,
@@ -91,7 +90,7 @@ class TestFeeLegPV:
             notional=1.0,
         )
         pv_1m = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             coupon_rate=0.01,
             discount_curve=sample_zero_curve,
@@ -107,7 +106,7 @@ class TestRiskyAnnuity:
     def test_risky_annuity_positive(self, sample_zero_curve, sample_credit_curve, sample_schedule):
         """Test risky annuity is positive."""
         ra = risky_annuity(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             discount_curve=sample_zero_curve,
             credit_curve=sample_credit_curve,
@@ -118,7 +117,7 @@ class TestRiskyAnnuity:
         """Test risky annuity is less than risk-free annuity."""
         # Risky annuity accounts for default probability
         ra = risky_annuity(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=sample_schedule,
             discount_curve=sample_zero_curve,
             credit_curve=sample_credit_curve,
@@ -135,7 +134,7 @@ class TestAccruedInterestFeeLeg:
     def test_accrued_interest_calculation(self, sample_schedule):
         """Test accrued interest calculation."""
         ai = calculate_accrued_interest(
-            value_date=date(2020, 4, 20),  # 1 month after start
+            value_date=Date(2020, 4, 20),  # 1 month after start
             schedule=sample_schedule,
             coupon_rate=0.01,
             notional=1_000_000.0,
@@ -150,7 +149,7 @@ class TestAccruedInterestFeeLeg:
         So at period start (March 20), stepinDate is March 21, giving 1 day of accrued.
         """
         ai = calculate_accrued_interest(
-            value_date=date(2020, 3, 20),  # Period start
+            value_date=Date(2020, 3, 20),  # Period start
             schedule=sample_schedule,
             coupon_rate=0.01,
             notional=1_000_000.0,
@@ -162,13 +161,13 @@ class TestAccruedInterestFeeLeg:
     def test_accrued_interest_before_schedule(self):
         """Test accrued interest before schedule start is zero."""
         schedule = CDSSchedule(
-            accrual_start=date(2020, 3, 20),
-            maturity=date(2020, 9, 20),
+            accrual_start=Date(2020, 3, 20),
+            maturity=Date(2020, 9, 20),
             frequency=PaymentFrequency.QUARTERLY,
         )
 
         ai = calculate_accrued_interest(
-            value_date=date(2020, 1, 1),  # Before schedule
+            value_date=Date(2020, 1, 1),  # Before schedule
             schedule=schedule,
             coupon_rate=0.01,
             notional=1_000_000.0,
@@ -182,14 +181,14 @@ class TestFeeLegIntegration:
     def test_fee_leg_short_maturity(self, sample_zero_curve, sample_credit_curve):
         """Test fee leg PV for short maturity CDS."""
         schedule = CDSSchedule(
-            accrual_start=date(2020, 3, 20),
-            maturity=date(2020, 9, 20),  # 6 months
+            accrual_start=Date(2020, 3, 20),
+            maturity=Date(2020, 9, 20),  # 6 months
             frequency=PaymentFrequency.QUARTERLY,
             day_count=DayCountConvention.ACT_360,
         )
 
         pv = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=schedule,
             coupon_rate=0.01,
             discount_curve=sample_zero_curve,
@@ -203,27 +202,27 @@ class TestFeeLegIntegration:
     def test_fee_leg_higher_hazard_rate(self, sample_zero_curve):
         """Test fee leg PV decreases with higher hazard rate."""
         schedule = CDSSchedule(
-            accrual_start=date(2020, 3, 20),
-            maturity=date(2025, 3, 20),
+            accrual_start=Date(2020, 3, 20),
+            maturity=Date(2025, 3, 20),
             frequency=PaymentFrequency.QUARTERLY,
         )
 
         # Low hazard rate curve
         low_hazard = CreditCurve(
-            base_date=date(2020, 3, 20),
+            base_date=Date(2020, 3, 20),
             times=np.array([1.0, 5.0]),
             hazard_rates=np.array([0.01, 0.01]),
         )
 
         # High hazard rate curve
         high_hazard = CreditCurve(
-            base_date=date(2020, 3, 20),
+            base_date=Date(2020, 3, 20),
             times=np.array([1.0, 5.0]),
             hazard_rates=np.array([0.10, 0.10]),
         )
 
         pv_low = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=schedule,
             coupon_rate=0.01,
             discount_curve=sample_zero_curve,
@@ -231,7 +230,7 @@ class TestFeeLegIntegration:
         )
 
         pv_high = fee_leg_pv(
-            value_date=date(2020, 3, 20),
+            value_date=Date(2020, 3, 20),
             schedule=schedule,
             coupon_rate=0.01,
             discount_curve=sample_zero_curve,

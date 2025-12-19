@@ -7,9 +7,9 @@ the ISDA standard methodology.
 
 
 import numpy as np
+from opendate import Date, Interval
 
 from .curves import CreditCurve, ZeroCurve
-from .dates import DateLike, parse_date, year_fraction
 from .enums import DayCountConvention
 from .exceptions import BootstrapError
 from .root_finding import brent
@@ -17,7 +17,7 @@ from .tenor import parse_tenor
 
 
 def bootstrap_credit_curve(
-    base_date: DateLike,
+    base_date: Date,
     par_spreads: list[float],
     spread_tenors: list[str],
     zero_curve: ZeroCurve,
@@ -44,8 +44,6 @@ def bootstrap_credit_curve(
     Returns
         Bootstrapped CreditCurve
     """
-    bd = parse_date(base_date)
-
     if len(par_spreads) != len(spread_tenors):
         raise BootstrapError('par_spreads and spread_tenors must have same length')
 
@@ -53,15 +51,15 @@ def bootstrap_credit_curve(
     times = []
     for tenor_str in spread_tenors:
         tenor = parse_tenor(tenor_str)
-        mat_date = tenor.add_to_date(bd)
-        t = year_fraction(bd, mat_date, day_count)
+        mat_date = tenor.add_to_date(base_date)
+        t = Interval(base_date, mat_date).yearfrac(basis=day_count.value)
         times.append(t)
 
     times = np.array(times)
 
     # Initialize credit curve
     credit_curve = CreditCurve(
-        base_date=bd,
+        base_date=base_date,
         times=times,
         hazard_rates=np.zeros(len(times)),
         day_count=day_count,
@@ -211,7 +209,7 @@ def _calculate_protection_pv(
 
 
 def credit_curve_from_hazard_rates(
-    base_date: DateLike,
+    base_date: Date,
     hazard_rates: list[float],
     tenors: list[str],
     day_count: DayCountConvention = DayCountConvention.ACT_365F,
@@ -228,13 +226,11 @@ def credit_curve_from_hazard_rates(
     Returns
         CreditCurve
     """
-    bd = parse_date(base_date)
-
     times = []
     for tenor_str in tenors:
         tenor = parse_tenor(tenor_str)
-        mat_date = tenor.add_to_date(bd)
-        t = year_fraction(bd, mat_date, day_count)
+        mat_date = tenor.add_to_date(base_date)
+        t = Interval(base_date, mat_date).yearfrac(basis=day_count.value)
         times.append(t)
 
-    return CreditCurve(bd, np.array(times), np.array(hazard_rates), day_count)
+    return CreditCurve(base_date, np.array(times), np.array(hazard_rates), day_count)

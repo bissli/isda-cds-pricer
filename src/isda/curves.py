@@ -7,11 +7,10 @@ Provides base curve functionality for:
 """
 
 from abc import ABC, abstractmethod
-from datetime import date
 
 import numpy as np
+from opendate import Date, Interval
 
-from .dates import DateLike, parse_date, year_fraction
 from .enums import DayCountConvention
 from .interpolation import flat_forward_interp
 
@@ -21,7 +20,7 @@ class Curve(ABC):
 
     def __init__(
         self,
-        base_date: DateLike,
+        base_date: Date,
         day_count: DayCountConvention = DayCountConvention.ACT_365F,
     ):
         """
@@ -31,13 +30,13 @@ class Curve(ABC):
             base_date: The reference date for the curve
             day_count: Day count convention for time calculations
         """
-        self._base_date = parse_date(base_date)
+        self._base_date = base_date
         self._day_count = day_count
         self._times: np.ndarray = np.array([])
         self._values: np.ndarray = np.array([])
 
     @property
-    def base_date(self) -> date:
+    def base_date(self) -> Date:
         """The reference date for the curve."""
         return self._base_date
 
@@ -56,11 +55,11 @@ class Curve(ABC):
         """Array of curve values (rates or hazard rates)."""
         return self._values
 
-    def time_from_date(self, d: DateLike) -> float:
+    def time_from_date(self, d: Date) -> float:
         """Convert a date to time (years from base date)."""
-        return year_fraction(self._base_date, d, self._day_count)
+        return Interval(self._base_date, d).yearfrac(basis=self._day_count.value)
 
-    def date_to_time(self, d: DateLike) -> float:
+    def date_to_time(self, d: Date) -> float:
         """Alias for time_from_date."""
         return self.time_from_date(d)
 
@@ -79,7 +78,7 @@ class ZeroCurve(Curve):
 
     def __init__(
         self,
-        base_date: DateLike,
+        base_date: Date,
         times: np.ndarray | None = None,
         rates: np.ndarray | None = None,
         day_count: DayCountConvention = DayCountConvention.ACT_365F,
@@ -116,7 +115,7 @@ class ZeroCurve(Curve):
         """Get the zero rate at time t."""
         return self.value_at(t)
 
-    def rate_at_date(self, d: DateLike) -> float:
+    def rate_at_date(self, d: Date) -> float:
         """Get the zero rate at a specific date."""
         t = self.time_from_date(d)
         return self.rate(t)
@@ -132,7 +131,7 @@ class ZeroCurve(Curve):
         r = self.rate(t)
         return np.exp(-r * t)
 
-    def discount_factor_at_date(self, d: DateLike) -> float:
+    def discount_factor_at_date(self, d: Date) -> float:
         """Calculate the discount factor at a specific date."""
         t = self.time_from_date(d)
         return self.discount_factor(t)
@@ -186,7 +185,7 @@ class CreditCurve(Curve):
 
     def __init__(
         self,
-        base_date: DateLike,
+        base_date: Date,
         times: np.ndarray | None = None,
         hazard_rates: np.ndarray | None = None,
         day_count: DayCountConvention = DayCountConvention.ACT_365F,
@@ -223,7 +222,7 @@ class CreditCurve(Curve):
         """Get the average hazard rate at time t."""
         return self.value_at(t)
 
-    def hazard_rate_at_date(self, d: DateLike) -> float:
+    def hazard_rate_at_date(self, d: Date) -> float:
         """Get the average hazard rate at a specific date."""
         t = self.time_from_date(d)
         return self.hazard_rate(t)
@@ -239,7 +238,7 @@ class CreditCurve(Curve):
         h = self.hazard_rate(t)
         return np.exp(-h * t)
 
-    def survival_probability_at_date(self, d: DateLike) -> float:
+    def survival_probability_at_date(self, d: Date) -> float:
         """Calculate the survival probability at a specific date."""
         t = self.time_from_date(d)
         return self.survival_probability(t)
