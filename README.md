@@ -33,3 +33,7 @@ result = pricer.price_cds(
 ```bash
 poetry run pytest
 ```
+
+## Documentation
+
+See the [CDS Pricing Guide](docs/CDS_PRICING_GUIDE.md) for a comprehensive guide covering CDS pricing from first principles to expert-level implementation.
