@@ -44,9 +44,6 @@ set_default_calendar('WEEKENDS_ONLY')
 from .calendar import adjust_date
 # CDS classes
 from .cds import CDS, CDSContract, CDSPricingResult
-# Backward-compatible API (for migrating from C++ version)
-from .compat import calculate_spread_from_upfront_charge, cds_all_in_one
-from .compat import cds_index_all_in_one, compute_isda_upfront
 from .credit_curve import bootstrap_credit_curve
 from .credit_curve import credit_curve_from_hazard_rates
 # Curve classes
@@ -55,7 +52,6 @@ from .curves import CreditCurve, Curve, ZeroCurve
 from .enums import AccrualOnDefault, BadDayConvention, DayCountConvention
 from .enums import PaymentFrequency, StubMethod
 # IMM dates
-from .imm import imm_date_vector  # backward compatible
 from .imm import imm_dates_for_tenors, is_imm_date, next_imm_date
 from .imm import previous_imm_date
 # Main pricer API
@@ -110,14 +106,8 @@ __all__ = [
     'previous_imm_date',
     'imm_dates_for_tenors',
     'is_imm_date',
-    'imm_date_vector',
     # Tenor
     'Tenor',
     'parse_tenor',
     'tenor_to_date',
-    # Backward-compatible API
-    'cds_all_in_one',
-    'compute_isda_upfront',
-    'calculate_spread_from_upfront_charge',
-    'cds_index_all_in_one',
 ]

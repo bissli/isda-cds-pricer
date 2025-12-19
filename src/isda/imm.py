@@ -176,17 +176,3 @@ def imm_dates_for_tenors(
             results.append((label, imm))
 
     return results
-
-
-def imm_date_vector(
-    start_date: Date,
-    tenor_list: list[float] = [0.5, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30],
-    format: str = '%d/%m/%Y',
-) -> list[tuple[str, str | Date]]:
-    """
-    Generate IMM date vector for tenors.
-
-    Legacy function - preserved for backward compatibility.
-    Prefer using imm_dates_for_tenors instead.
-    """
-    return imm_dates_for_tenors(start_date, tenor_list, date_format=format)
